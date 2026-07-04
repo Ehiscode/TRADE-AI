@@ -1,0 +1,1 @@
+This is my AI prediction bot for the crypto market where users get to get predictions on trends in the market to know which pairs are suitable to trade, buy and hold to reduce the chances if losses and also improved risk management 
