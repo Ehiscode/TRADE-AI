@@ -1,33 +1,131 @@
+// ===============================
+// COCO'S AI TRADING DASHBOARD
+// JavaScript Logic File
+// ===============================
+// This file controls:
+// 1. Live Binance market data
+// 2. Dynamic symbol search
+// 3. Candlestick chart rendering
+// 4. EMA, RSI, trend, volume and signal calculations
+// 5. Market scanner table
+// 6. Risk management calculator
+
+// These are Binance candle-data API endpoints.
+// We keep two endpoints so the app has a backup if one fails.
 const API_BASES = [
   "https://data-api.binance.vision/api/v3/klines",
   "https://api.binance.com/api/v3/klines"
 ];
 
-const pairs = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "AVAXUSDT"];
+// These are Binance exchange-info API endpoints.
+// They return all valid Binance trading symbols like BTCUSDT, ETHBTC, DOGEUSDT, etc.
+const EXCHANGE_INFO_BASES = [
+  "https://data-api.binance.vision/api/v3/exchangeInfo",
+  "https://api.binance.com/api/v3/exchangeInfo"
+];
 
+// These pairs are used for the market scanner table.
+// The search bar will support all Binance pairs, but scanning thousands at once would be slow for the browser.
+const scannerPairs = [
+  "BTCUSDT",
+  "ETHUSDT",
+  "SOLUSDT",
+  "BNBUSDT",
+  "AVAXUSDT",
+  "XRPUSDT",
+  "DOGEUSDT",
+  "LINKUSDT",
+  "ADAUSDT",
+  "SUIUSDT",
+  "PEPEUSDT",
+  "NEARUSDT"
+];
+
+// This variable stores every tradable Binance symbol after we load exchangeInfo.
+let allSymbols = [];
+
+// This variable stores Binance symbol metadata, such as base asset and quote asset.
+let symbolDetails = {};
+
+// This variable will hold the Lightweight Charts chart instance.
 let chart;
+
+// This variable will hold the candlestick series on the chart.
 let candleSeries;
+
+// This keeps track of the pair currently displayed on the main chart.
 let selectedPair = "BTCUSDT";
 
-const pairNames = {
-  BTCUSDT: "Bitcoin / Tether",
-  ETHUSDT: "Ethereum / Tether",
-  SOLUSDT: "Solana / Tether",
-  BNBUSDT: "BNB / Tether",
-  AVAXUSDT: "Avalanche / Tether"
-};
-
+// This converts raw Binance symbols into a more readable format.
+// Example: BTCUSDT becomes BTC/USDT.
 function formatPair(pair) {
-  return pair.replace("USDT", "/USDT");
+  const details = symbolDetails[pair];
+
+  if (details) {
+    return `${details.baseAsset}/${details.quoteAsset}`;
+  }
+
+  return pair
+    .replace("USDT", "/USDT")
+    .replace("USDC", "/USDC")
+    .replace("FDUSD", "/FDUSD")
+    .replace("BTC", "/BTC")
+    .replace("ETH", "/ETH")
+    .replace("BNB", "/BNB");
 }
 
+// This formats raw price numbers into dollar-style readable values.
+// Example: 62450.245 becomes $62,450.25.
 function formatPrice(price) {
   return `$${Number(price).toLocaleString(undefined, {
     minimumFractionDigits: 2,
-    maximumFractionDigits: 2
+    maximumFractionDigits: 8
   })}`;
 }
 
+// This loads every valid Binance trading pair.
+// It runs once when the app starts.
+async function loadExchangeSymbols() {
+  let lastError;
+
+  for (const apiBase of EXCHANGE_INFO_BASES) {
+    try {
+      const response = await fetch(apiBase);
+
+      if (!response.ok) {
+        throw new Error(`Exchange info request returned ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      allSymbols = data.symbols
+        .filter(symbol => symbol.status === "TRADING")
+        .map(symbol => symbol.symbol);
+
+      symbolDetails = data.symbols.reduce((details, symbol) => {
+        if (symbol.status === "TRADING") {
+          details[symbol.symbol] = {
+            baseAsset: symbol.baseAsset,
+            quoteAsset: symbol.quoteAsset
+          };
+        }
+
+        return details;
+      }, {});
+
+      console.log(`Loaded ${allSymbols.length} Binance trading pairs.`);
+      return;
+    } catch (error) {
+      lastError = error;
+      console.warn(`Could not load exchange symbols from ${apiBase}`, error);
+    }
+  }
+
+  throw new Error(lastError?.message || "Could not load Binance symbols");
+}
+
+// This fetches candle data from Binance.
+// A candle contains open, high, low, close and volume for a time period.
 async function fetchCandles(symbol = "BTCUSDT", interval = "4h", limit = 150) {
   let lastError;
 
@@ -65,6 +163,8 @@ async function fetchCandles(symbol = "BTCUSDT", interval = "4h", limit = 150) {
   );
 }
 
+// This calculates the Exponential Moving Average.
+// EMA gives more importance to recent price action than older candles.
 function calculateEMA(candles, period = 50) {
   const closes = candles.map(candle => candle.close);
   const multiplier = 2 / (period + 1);
@@ -78,6 +178,8 @@ function calculateEMA(candles, period = 50) {
   return ema;
 }
 
+// This calculates RSI.
+// RSI helps estimate momentum and whether price may be overbought or oversold.
 function calculateRSI(candles, period = 14) {
   const closes = candles.map(candle => candle.close);
 
@@ -103,6 +205,7 @@ function calculateRSI(candles, period = 14) {
   return 100 - 100 / (1 + rs);
 }
 
+// This checks whether the latest volume is stronger than recent average volume.
 function calculateVolumeStrength(candles) {
   const recentVolume = candles[candles.length - 1].volume;
 
@@ -112,6 +215,10 @@ function calculateVolumeStrength(candles) {
   return recentVolume > averageVolume ? "Strong" : "Weak";
 }
 
+// This calculates basic trade levels.
+// Support is the lowest low from recent candles.
+// Resistance is the highest high from recent candles.
+// Stop loss and take profit are calculated using a basic 1:2 risk-reward model.
 function calculateTradeLevels(candles, direction) {
   const lastCandle = candles[candles.length - 1];
   const recentCandles = candles.slice(-30);
@@ -148,22 +255,27 @@ function calculateTradeLevels(candles, direction) {
   };
 }
 
+// This detects the current trend using EMA structure.
+// Bullish means price is above EMA50 and EMA50 is above EMA100.
+// Bearish means price is below EMA50 and EMA50 is below EMA100.
 function detectTrend(candles) {
   const lastClose = candles[candles.length - 1].close;
   const ema50 = calculateEMA(candles, 50);
-  const ema200 = calculateEMA(candles, 100);
+  const ema100 = calculateEMA(candles, 100);
 
-  if (lastClose > ema50 && ema50 > ema200) {
+  if (lastClose > ema50 && ema50 > ema100) {
     return "Bullish";
   }
 
-  if (lastClose < ema50 && ema50 < ema200) {
+  if (lastClose < ema50 && ema50 < ema100) {
     return "Bearish";
   }
 
   return "Neutral";
 }
 
+// This is the main signal engine.
+// It combines trend, EMA, RSI, volume and candle direction into a confidence score.
 function calculateSignal(candles) {
   const lastCandle = candles[candles.length - 1];
   const previousCandle = candles[candles.length - 2];
@@ -234,6 +346,7 @@ function calculateSignal(candles) {
   };
 }
 
+// This creates the chart area using Lightweight Charts.
 function createChart() {
   if (typeof LightweightCharts === "undefined") {
     const chartElement = document.getElementById("chart");
@@ -269,9 +382,10 @@ function createChart() {
   });
 }
 
+// This updates the main dashboard with the newest signal result.
 function updateDashboard(signal, pair) {
   document.getElementById("pairTitle").textContent = formatPair(pair);
-  document.getElementById("pairSubtitle").textContent = `${pairNames[pair] || formatPair(pair)} · 4h · Binance`;
+  document.getElementById("pairSubtitle").textContent = `${formatPair(pair)} · 4h · Binance`;
   document.getElementById("currentPrice").textContent = formatPrice(signal.price);
   document.getElementById("chartPrice").textContent = formatPrice(signal.price);
 
@@ -307,6 +421,7 @@ function updateDashboard(signal, pair) {
   });
 }
 
+// This loads the selected pair into the main chart.
 async function loadMainChart(pair = selectedPair) {
   try {
     selectedPair = pair;
@@ -325,6 +440,7 @@ async function loadMainChart(pair = selectedPair) {
   }
 }
 
+// This scans the default scanner pairs and displays their signals in the table.
 async function scanMarket() {
   const table = document.getElementById("scannerTable");
   table.innerHTML = "";
@@ -334,7 +450,7 @@ async function scanMarket() {
     score: 0
   };
 
-  for (const pair of pairs) {
+  for (const pair of scannerPairs) {
     try {
       const candles = await fetchCandles(pair, "4h", 150);
       const signal = calculateSignal(candles);
@@ -385,6 +501,7 @@ async function scanMarket() {
   document.getElementById("bestConfidence").textContent = `${best.score}% Confidence`;
 }
 
+// This calculates how much position size to use based on account risk.
 function calculateRisk() {
   const balance = Number(document.getElementById("balance").value);
   const riskPercent = Number(document.getElementById("riskPercent").value);
@@ -409,33 +526,79 @@ function calculateRisk() {
   `;
 }
 
+// This converts user input into a valid Binance symbol.
+// Examples:
+// BTC becomes BTCUSDT.
+// DOGE becomes DOGEUSDT.
+// ETHBTC remains ETHBTC.
+// SOL/USDC becomes SOLUSDC.
+function findMatchingSymbol(searchValue) {
+  const cleanedSearch = searchValue.trim().toUpperCase().replace("/", "");
+
+  if (!cleanedSearch) return null;
+
+  const possibleSymbols = [
+    cleanedSearch,
+    `${cleanedSearch}USDT`,
+    `${cleanedSearch}USDC`,
+    `${cleanedSearch}FDUSD`,
+    `${cleanedSearch}BTC`,
+    `${cleanedSearch}ETH`,
+    `${cleanedSearch}BNB`
+  ];
+
+  return possibleSymbols.find(symbol => allSymbols.includes(symbol));
+}
+
+// This runs when the user searches from the input box.
 function handleSearch() {
-  const searchValue = document.getElementById("searchInput").value.trim().toUpperCase();
+  const searchValue = document.getElementById("searchInput").value;
+  const matchedSymbol = findMatchingSymbol(searchValue);
 
-  if (!searchValue) return;
+  if (!matchedSymbol) {
+    const cleanedSearch = searchValue.trim().toUpperCase().replace("/", "");
 
-  const normalizedPair = searchValue.endsWith("USDT")
-    ? searchValue.replace("/", "")
-    : `${searchValue.replace("/", "")}USDT`;
+    const suggestions = allSymbols
+      .filter(symbol => symbol.includes(cleanedSearch))
+      .slice(0, 8);
 
-  if (!pairs.includes(normalizedPair)) {
-    alert("This demo currently supports BTC, ETH, SOL, BNB, and AVAX against USDT.");
+    alert(
+      suggestions.length
+        ? `Pair not found. Did you mean: ${suggestions.join(", ")}?`
+        : "Pair not found on Binance. Try examples like DOGE, XRP, PEPE, ETHBTC, or SOLUSDC."
+    );
+
     return;
   }
 
-  loadMainChart(normalizedPair);
+  loadMainChart(matchedSymbol);
 }
 
+// This connects the buttons and input fields to JavaScript functions.
 document.getElementById("refreshBtn").addEventListener("click", () => loadMainChart(selectedPair));
+
 document.getElementById("searchInput").addEventListener("keydown", event => {
   if (event.key === "Enter") {
     handleSearch();
   }
 });
+
 document.getElementById("scanBtn").addEventListener("click", scanMarket);
 document.getElementById("riskBtn").addEventListener("click", calculateRisk);
 
-createChart();
-loadMainChart();
-scanMarket();
-calculateRisk();
+// This starts the app in the correct order.
+async function startApp() {
+  createChart();
+
+  try {
+    await loadExchangeSymbols();
+  } catch (error) {
+    console.warn(error);
+  }
+
+  loadMainChart();
+  scanMarket();
+  calculateRisk();
+}
+
+startApp();
