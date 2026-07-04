@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+  
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TradeAI Dashboard</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+
+<body>
+
+  <div class="app">
+
+    <aside class="sidebar">
+      <div class="logo">
+        <div class="logo-icon">T</div>
+        <div>
+          <h1>TradeAI</h1>
+          <p>AI Trading Assistant</p>
+        </div>
+      </div>
+
+      <nav>
+        <a class="active">Dashboard</a>
+        <a>Market Scanner</a>
+        <a>Chart Analysis</a>
+        <a>AI Signals</a>
+        <a>Risk Management</a>
+        <a>Trade Journal</a>
+        <a>Backtesting</a>
+        <a>Settings</a>
+      </nav>
+
+      <div class="mini-card">
+        <p>Account Balance</p>
+        <h2>$10,250.00</h2>
+        <span class="green">+$245.30 today</span>
+      </div>
+    </aside>
+
+    <main class="main">
+
+      <header class="topbar">
+        <input id="searchInput" type="text" placeholder="Search BTC, ETH, SOL, BNB, or AVAX..." />
+        <div class="market-status">
+          <span></span>
+          Markets: Open
+        </div>
+      </header>
+
+      <section class="stats-grid">
+        <div class="stat-card">
+          <p>AI Market Outlook</p>
+          <h2 id="marketOutlook">Loading...</h2>
+          <span>Based on trend + momentum</span>
+        </div>
+
+        <div class="stat-card">
+          <p>Current Price</p>
+          <h2 id="currentPrice">$0.00</h2>
+          <span id="priceChange">Fetching market data</span>
+        </div>
+
+        <div class="stat-card">
+          <p>Best Opportunity</p>
+          <h2 id="bestPair">BTC/USDT</h2>
+          <span id="bestConfidence">Scanning...</span>
+        </div>
+
+        <div class="stat-card">
+          <p>Total Open Trades</p>
+          <h2>3</h2>
+          <span>Demo portfolio</span>
+        </div>
+      </section>
+
+      <section class="dashboard-grid">
+
+        <div class="chart-card">
+          <div class="chart-header">
+            <div>
+              <h2 id="pairTitle">BTC/USDT</h2>
+              <p id="pairSubtitle">Bitcoin / Tether · 4h · Binance</p>
+            </div>
+
+            <div>
+              <h2 id="chartPrice" class="green">$0.00</h2>
+              <p id="chartChange" class="green">0.00%</p>
+            </div>
+          </div>
+
+          <div id="chart"></div>
+
+          <div class="levels">
+            <span id="takeProfitLevel" class="profit">Take Profit: --</span>
+            <span id="entryLevel" class="entry">Entry: --</span>
+            <span id="stopLossLevel" class="loss">Stop Loss: --</span>
+          </div>
+        </div>
+
+        <aside class="signal-card">
+          <div class="signal-top">
+            <h2>AI Trade Signal</h2>
+            <span id="setupBadge">Scanning</span>
+          </div>
+
+          <h1 id="signalDirection">WAIT</h1>
+          <p id="signalText">Analyzing market structure...</p>
+
+          <div class="confidence-ring">
+            <h2 id="confidenceScore">0%</h2>
+            <p>Confidence</p>
+          </div>
+
+          <div class="reason-box">
+            <h3>AI Reasoning</h3>
+            <ul id="reasonList"></ul>
+          </div>
+
+          <button id="refreshBtn">Refresh Analysis</button>
+        </aside>
+
+      </section>
+
+      <section class="bottom-grid">
+
+        <div class="table-card">
+          <div class="section-header">
+            <h2>Market Scanner</h2>
+            <button id="scanBtn">Scan Market</button>
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th>Pair</th>
+                <th>Direction</th>
+                <th>RSI</th>
+                <th>Confidence</th>
+                <th>Entry</th>
+                <th>Stop</th>
+                <th>Target</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="scannerTable"></tbody>
+          </table>
+        </div>
+
+        <div class="risk-card">
+          <h2>Risk Management</h2>
+
+          <label>Account Balance</label>
+          <input id="balance" type="number" value="1000" />
+
+          <label>Risk Per Trade (%)</label>
+          <input id="riskPercent" type="number" value="2" />
+
+          <label>Entry Price</label>
+          <input id="entryPrice" type="number" value="62200" />
+
+          <label>Stop Loss</label>
+          <input id="stopLoss" type="number" value="60500" />
+
+          <button id="riskBtn">Calculate Position</button>
+
+          <div id="riskOutput"></div>
+        </div>
+
+      </section>
+
+    </main>
+
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.2.3/dist/lightweight-charts.standalone.production.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>
